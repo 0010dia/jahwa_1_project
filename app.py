@@ -220,6 +220,15 @@ def seed_demo_flood_reports() -> dict[str, int]:
     return {"inserted": inserted, "total": len(DEMO_FLOOD_POINTS)}
 
 
+if os.getenv("AUTO_SEED_DEMO_FLOODS", "true").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}:
+    seed_demo_flood_reports()
+
+
 def load_location_reports(limit: int = 500) -> list[dict[str, Any]]:
     with _report_connection() as connection:
         rows = connection.execute(

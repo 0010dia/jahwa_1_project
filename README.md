@@ -58,6 +58,10 @@ flask --app app run --debug
 `데모`로 표시하며 주황색 40m 원으로 그립니다. 다음 명령은 없는 샘플만 추가하므로
 반복 실행해도 중복되지 않습니다.
 
+기본 설정에서는 앱 시작 시 누락된 데모를 자동으로 추가합니다. 자동 추가가
+필요하지 않으면 `AUTO_SEED_DEMO_FLOODS=false`로 설정합니다. 이미 존재하거나
+관리자가 해제한 데모는 다시 추가하거나 재활성화하지 않습니다.
+
 ```bash
 python scripts/seed_demo_flood_reports.py
 ```
