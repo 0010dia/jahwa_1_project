@@ -49,6 +49,9 @@ flask --app app run --debug
 `지도에서 침수 추가`를 누른 뒤 지도에서 지점을 선택하면 좌표와 선택 메모를
 확인하고 즉시 현재 침수구역으로 등록할 수 있습니다. 관리자 직접 등록 건도 반경
 40m 구역으로 생성되며 `관리자 직접 추가` 필터와 데이터 구분으로 식별됩니다.
+`동별 통계`에서는 활성 침수 좌표를 구미시 25개 읍면동 경계에 공간 조인하여
+현재 침수 건수와 사용자·관리자·데모 구분을 보여줍니다. 지도 폴리곤은 0건, 1건,
+2~3건, 4~5건, 6건 이상 단계에 따라 색이 진해집니다.
 `Excel 내보내기`는 승인된 현재 침수 및 해제된 침수 이력을 한국시간 기준 연도,
 날짜, 시간, 위도, 경도 등의 열로 구성한 `.xlsx` 파일로 내려받습니다. 승인 대기
 신고는 확정 침수 이력과 Excel에서 제외됩니다.
@@ -90,7 +93,16 @@ API에서 지역코드가 구미시 `47190`으로 시작하는 항목만 추출�
 - `data/flood_maps/river`: 지방하천 하천범람지도 원본
 - `data/flood_maps/urban`: 도시침수지도 원본
 - `data/flood_maps/processed`: 서버 판정용 WKB와 지도 표시용 GeoJSON
+- `data/gumi_admin_dongs.geojson`: 2026년 7월 구미시 행정동 경계 25개
 - `data/reports.sqlite3`: 사용자 위치 신고 저장소(최초 신고/조회 시 자동 생성)
+
+행정동 경계는 통계청 SGIS 자료를 기반으로 정리한
+[`vuski/admdongkor`](https://github.com/vuski/admdongkor)의 2026년 7월 자료에서
+구미시 코드 `47190`만 추출했습니다. 원본을 다시 추출하려면 다음 명령을 실행합니다.
+
+```bash
+python scripts/import_gumi_admin_dongs.py HangJeongDong_ver20260701.geojson
+```
 
 공식 API에서 실제 침수흔적을 갱신하려면 다음 명령을 실행합니다.
 

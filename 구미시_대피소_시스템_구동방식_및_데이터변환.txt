@@ -646,6 +646,11 @@ GET /api/admin/reports
 - 저장된 신고를 최신순으로 최대 500건 반환
 - 전체 신고 수와 승인된 확정 침수 이력 수 반환
 
+GET /api/admin/flood-statistics/dongs
+- active 상태의 현재 침수 좌표를 구미시 25개 읍면동 Polygon에 공간 조인
+- 읍면동별 전체/사용자/관리자/데모 건수와 지도 단계 색상을 GeoJSON으로 반환
+- 공간 조인은 Shapely STRtree로 후보 경계를 찾고 covers로 최종 판정
+
 POST /api/admin/flood-zones
 - 관리자 지도에서 선택한 구미시 인근 좌표와 선택 메모 저장
 - source=admin으로 구분하고 별도 승인 단계 없이 active 상태로 즉시 등록
@@ -828,6 +833,7 @@ python -m pytest -q
 - 실시간 상태: pending(대기) -> active(현재 침수) -> resolved(해제)
 - 침수 이력: 신고/승인/해제 시각과 좌표 보존, 관리자 조회 및 Excel 내보내기
 - 관리자 직접 등록: 지도 클릭 좌표를 즉시 active 반경 40m 구역으로 추가
+- 동별 통계: 현재 침수 좌표를 행정동 경계와 공간 조인하고 건수별 단계 색상 표시
 - 데모 침수: 실제 침수흔적 내부 15개 고정 좌표, 주황색 표시, 중복 시드 방지
 - 경로 표시: TMAP이 반환한 index 기반 실제 LineString만 사용
 - 완전 우회 불가 시: 위험구간 감소율 또는 대피소 진입도로 경고 표시

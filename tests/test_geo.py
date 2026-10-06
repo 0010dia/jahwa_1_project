@@ -3,6 +3,7 @@ from io import BytesIO
 import app as app_module
 import pytest
 import shapely
+from admin_districts import get_admin_district_repository
 from openpyxl import load_workbook
 from app import (
     _extract_tmap_route,
@@ -266,6 +267,8 @@ def test_admin_reports_page_is_available():
     assert "신고 좌표 관리" in html
     assert 'id="startFloodPlacement"' in html
     assert 'id="adminFloodDialog"' in html
+    assert 'id="dongStatsTab"' in html
+    assert 'id="dongStatsList"' in html
 
 
 def test_user_page_defaults_to_current_flood_only():
@@ -382,6 +385,63 @@ def test_admin_map_point_rejects_coordinates_outside_gumi(report_db):
     assert response.status_code == 400
     assert "구미시" in response.get_json()["error"]
     assert not report_db.exists()
+
+
+def test_gumi_admin_districts_cover_all_demo_flood_points():
+    repository = get_admin_district_repository()
+    reports = [
+        {
+            "id": index,
+            "lat": lat,
+            "lng": lng,
+            "isSample": True,
+            "isAdminCreated": False,
+        }
+        for index, (lat, lng) in enumerate(app_module.DEMO_FLOOD_POINTS, start=1)
+    ]
+    payload = repository.statistics(reports)
+
+    assert payload["metadata"]["featureCount"] == 25
+    assert payload["metadata"]["activeCount"] == 15
+    assert payload["metadata"]["unmatchedCount"] == 0
+    assert sum(
+        feature["properties"]["activeCount"]
+        for feature in payload["features"]
+    ) == 15
+    assert all(
+        feature["properties"]["fullName"].startswith("경상북도 구미시 ")
+        for feature in payload["features"]
+    )
+
+
+def test_admin_dong_statistics_follow_active_flood_status(report_db):
+    client = app_module.app.test_client()
+    report = client.post(
+        "/api/admin/flood-zones",
+        json={"lat": 36.11856, "lng": 128.36556},
+    ).get_json()["report"]
+
+    active_payload = client.get(
+        "/api/admin/flood-statistics/dongs"
+    ).get_json()
+    active_features = [
+        feature
+        for feature in active_payload["features"]
+        if feature["properties"]["activeCount"]
+    ]
+
+    assert active_payload["metadata"]["activeCount"] == 1
+    assert active_payload["metadata"]["affectedDongCount"] == 1
+    assert active_payload["metadata"]["unmatchedCount"] == 0
+    assert active_features[0]["properties"]["adminCount"] == 1
+    assert active_features[0]["properties"]["reportIds"] == [report["id"]]
+
+    client.post(f"/api/admin/reports/{report['id']}/resolve")
+    resolved_payload = client.get(
+        "/api/admin/flood-statistics/dongs"
+    ).get_json()
+    assert resolved_payload["metadata"]["activeCount"] == 0
+    assert resolved_payload["metadata"]["affectedDongCount"] == 0
 
 
 def test_live_flood_geometry_uses_approximately_40_meter_radius():

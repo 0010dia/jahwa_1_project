@@ -4,8 +4,12 @@ const state = {
   map: null,
   reports: [],
   markers: [],
+  dongStatistics: null,
+  dongPolygons: [],
   selectedReportId: null,
+  selectedDongCode: null,
   reportFilter: "all",
+  panelView: "reports",
   placementMode: false,
   pendingPoint: null,
   pendingMarker: null,
@@ -60,6 +64,8 @@ function reportLabel(report, detailed = false) {
 
 async function initialize() {
   $("#refreshReports").addEventListener("click", loadReports);
+  $("#reportsTab").addEventListener("click", () => setPanelView("reports"));
+  $("#dongStatsTab").addEventListener("click", () => setPanelView("dongs"));
   $("#startFloodPlacement").addEventListener("click", () => {
     setPlacementMode(!state.placementMode);
   });
@@ -240,16 +246,89 @@ function showReportSummary() {
   );
 }
 
+function setPanelView(view) {
+  state.panelView = view;
+  const showReports = view === "reports";
+  $("#reportsView").hidden = !showReports;
+  $("#dongStatsView").hidden = showReports;
+  $("#reportsTab").classList.toggle("active", showReports);
+  $("#reportsTab").setAttribute("aria-selected", String(showReports));
+  $("#dongStatsTab").classList.toggle("active", !showReports);
+  $("#dongStatsTab").setAttribute("aria-selected", String(!showReports));
+}
+
+function renderDongStatistics() {
+  const payload = state.dongStatistics;
+  const list = $("#dongStatsList");
+  const legend = $("#dongLegend");
+  list.replaceChildren();
+  legend.replaceChildren();
+  if (!payload) return;
+
+  $("#dongActiveCount").textContent = `${payload.metadata?.activeCount || 0}건`;
+  $("#affectedDongCount").textContent = `${payload.metadata?.affectedDongCount || 0}곳`;
+
+  (payload.legend || []).forEach((item) => {
+    const label = document.createElement("span");
+    const swatch = document.createElement("i");
+    swatch.style.background = item.color;
+    label.append(swatch, item.label);
+    legend.appendChild(label);
+  });
+
+  const features = [...(payload.features || [])].sort((a, b) => {
+    const countDifference = b.properties.activeCount - a.properties.activeCount;
+    return countDifference || a.properties.name.localeCompare(b.properties.name, "ko");
+  });
+  features.forEach((feature) => {
+    const properties = feature.properties;
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = `dong-stat-item${properties.code === state.selectedDongCode ? " active" : ""}`;
+
+    const heading = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = properties.name;
+    const count = document.createElement("span");
+    count.className = properties.activeCount ? "has-flood" : "no-flood";
+    count.textContent = `${properties.activeCount}건`;
+    count.style.setProperty("--dong-color", properties.color);
+    heading.append(name, count);
+
+    const breakdown = document.createElement("span");
+    breakdown.className = "dong-stat-breakdown";
+    const parts = [
+      properties.userCount ? `사용자 ${properties.userCount}` : "",
+      properties.adminCount ? `관리자 ${properties.adminCount}` : "",
+      properties.demoCount ? `데모 ${properties.demoCount}` : "",
+    ].filter(Boolean);
+    breakdown.textContent = parts.length ? parts.join(" · ") : "현재 침수 없음";
+    item.append(heading, breakdown);
+    item.addEventListener("click", () => selectDong(properties.code));
+    list.appendChild(item);
+  });
+}
+
 async function loadReports() {
   const button = $("#refreshReports");
   button.disabled = true;
   button.textContent = "불러오는 중";
   try {
-    const response = await fetch("/api/admin/reports");
-    const payload = await response.json();
+    const [response, statisticsResponse] = await Promise.all([
+      fetch("/api/admin/reports"),
+      fetch("/api/admin/flood-statistics/dongs"),
+    ]);
+    const [payload, statisticsPayload] = await Promise.all([
+      response.json(),
+      statisticsResponse.json(),
+    ]);
     if (!response.ok) throw new Error(payload.error || "신고 목록을 불러오지 못했습니다.");
+    if (!statisticsResponse.ok) {
+      throw new Error(statisticsPayload.error || "동별 침수 통계를 불러오지 못했습니다.");
+    }
 
     state.reports = payload.reports || [];
+    state.dongStatistics = statisticsPayload;
     if (!state.reports.some((report) => report.id === state.selectedReportId)) {
       state.selectedReportId = state.reports[0]?.id || null;
     }
@@ -266,6 +345,7 @@ async function loadReports() {
       showReportSummary();
     }
     renderReports();
+    renderDongStatistics();
     drawMarkers();
   } catch (error) {
     $("#adminMapStatus").textContent = error instanceof Error
@@ -448,8 +528,56 @@ function clearMarkers() {
   state.markers = [];
 }
 
+function geometryPolygons(geometry) {
+  if (!geometry) return [];
+  if (geometry.type === "Polygon") return [geometry.coordinates];
+  if (geometry.type === "MultiPolygon") return geometry.coordinates;
+  return [];
+}
+
+function clearDongPolygons() {
+  state.dongPolygons.forEach((polygon) => polygon.setMap(null));
+  state.dongPolygons = [];
+}
+
+function drawDongPolygons() {
+  clearDongPolygons();
+  if (!state.map || !window.Tmapv2 || !state.dongStatistics) return;
+
+  (state.dongStatistics.features || []).forEach((feature) => {
+    const properties = feature.properties;
+    const isSelected = properties.code === state.selectedDongCode;
+    geometryPolygons(feature.geometry).forEach((polygonCoordinates) => {
+      const exterior = polygonCoordinates[0] || [];
+      if (exterior.length < 3) return;
+      const layer = new Tmapv2.Polygon({
+        paths: exterior.map(([lng, lat]) => new Tmapv2.LatLng(lat, lng)),
+        map: state.map,
+        fillColor: properties.color,
+        fillOpacity: Math.min(
+          0.58,
+          Number(properties.fillOpacity || 0.06) + (isSelected ? 0.1 : 0)
+        ),
+        strokeColor: isSelected ? "#0f4556" : properties.color,
+        strokeOpacity: properties.activeCount ? 0.9 : 0.42,
+        strokeWeight: isSelected ? 4 : properties.activeCount ? 2 : 1,
+      });
+      const handleClick = () => {
+        if (!state.placementMode) selectDong(properties.code);
+      };
+      if (typeof layer.addListener === "function") {
+        layer.addListener("click", handleClick);
+      } else if (window.Tmapv2?.event?.addListener) {
+        Tmapv2.event.addListener(layer, "click", handleClick);
+      }
+      state.dongPolygons.push(layer);
+    });
+  });
+}
+
 function drawMarkers() {
   clearMarkers();
+  drawDongPolygons();
   const reports = visibleReports();
   if (!state.map || !window.Tmapv2 || !reports.length) return;
 
@@ -483,12 +611,48 @@ function drawMarkers() {
 function selectReport(id) {
   const report = state.reports.find((item) => item.id === id);
   if (!report) return;
+  setPanelView("reports");
   state.selectedReportId = id;
   renderReports();
   if (state.map) {
     state.map.setCenter(new Tmapv2.LatLng(report.lat, report.lng));
     state.map.setZoom(16);
   }
+}
+
+function selectDong(code) {
+  const feature = state.dongStatistics?.features?.find(
+    (item) => item.properties.code === code
+  );
+  if (!feature) return;
+  state.selectedDongCode = code;
+  setPanelView("dongs");
+  renderDongStatistics();
+  drawDongPolygons();
+
+  if (state.map) {
+    const bounds = new Tmapv2.LatLngBounds();
+    geometryPolygons(feature.geometry).forEach((polygonCoordinates) => {
+      (polygonCoordinates[0] || []).forEach(([lng, lat]) => {
+        bounds.extend(new Tmapv2.LatLng(lat, lng));
+      });
+    });
+    try {
+      state.map.fitBounds(bounds);
+    } catch {
+      state.map.setCenter(
+        new Tmapv2.LatLng(feature.properties.centerLat, feature.properties.centerLng)
+      );
+      state.map.setZoom(13);
+    }
+  }
+
+  window.setTimeout(() => {
+    $("#dongStatsList .dong-stat-item.active")?.scrollIntoView({
+      block: "nearest",
+      behavior: "smooth",
+    });
+  }, 0);
 }
 
 initialize().catch((error) => {

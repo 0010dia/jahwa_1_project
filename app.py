@@ -17,6 +17,7 @@ from flask import Flask, jsonify, render_template, request, send_file
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
+from admin_districts import get_admin_district_repository
 from flood_data import (
     FloodRepository,
     get_flood_repository,
@@ -1094,6 +1095,12 @@ def api_admin_reports():
             "confirmedCount": confirmed_count,
         }
     )
+
+
+@app.get("/api/admin/flood-statistics/dongs")
+def api_admin_dong_flood_statistics():
+    repository = get_admin_district_repository()
+    return jsonify(repository.statistics(load_active_location_reports()))
 
 
 @app.post("/api/admin/flood-zones")
