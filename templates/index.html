@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>구미시 대피소 안내</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    {% if tmap_app_key %}
+    <script
+      id="tmapSdk"
+      src="https://apis.openapi.sk.com/tmap/jsv2?version=1&amp;appKey={{ tmap_app_key }}"
+    ></script>
+    {% endif %}
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <div class="brand-copy">
+            <strong>구미시 대피소 안내</strong>
+            <span>재난 대피 경로</span>
+          </div>
+          <span id="apiBadge">초기화 중</span>
+        </div>
+        <div class="control-row" aria-label="지도 및 경로 설정">
+          <div class="control-group location-controls">
+            <button id="locateBtn" class="primary-command" type="button">현재 위치</button>
+            <button id="demoBtn" class="secondary-command" type="button">구미역 기준</button>
+            <button id="reportBtn" class="report-command" type="button" disabled>현재 위치 신고</button>
+          </div>
+          <div class="control-group mode-controls">
+            <span class="control-label">이동</span>
+            <select id="modeSelect" aria-label="이동 방식">
+              <option value="pedestrian">도보</option>
+              <option value="car">차량</option>
+            </select>
+          </div>
+          <div class="control-group risk-controls">
+            <label class="switch">
+              <input id="includeRiskAreas" type="checkbox">
+              <span class="switch-track" aria-hidden="true"></span>
+              <span>침수 위험지역</span>
+            </label>
+            <label class="switch">
+              <input id="includeFiftyYear" type="checkbox">
+              <span class="switch-track" aria-hidden="true"></span>
+              <span>50년 빈도</span>
+            </label>
+            <label class="switch">
+              <input id="avoidFlood" type="checkbox" checked>
+              <span class="switch-track" aria-hidden="true"></span>
+              <span>침수 우회</span>
+            </label>
+          </div>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="map-pane" aria-label="티맵 지도">
+          <div id="map"></div>
+          <div id="fallbackMap" hidden></div>
+          <div id="mapStatus" class="map-status">위치를 확인하면 가까운 대피소를 계산합니다.</div>
+        </section>
+
+        <aside class="side-panel">
+          <section class="panel-section">
+            <div class="section-title">
+              <span>현재 위치</span>
+              <strong id="locationText">대기 중</strong>
+            </div>
+          </section>
+
+          <section class="panel-section">
+            <div class="section-title">
+              <span>추천 대피소</span>
+              <strong id="nearestDistance">-</strong>
+            </div>
+            <div id="nearestCard" class="empty-state">좌표가 들어오면 자동으로 추천합니다.</div>
+          </section>
+
+          <section class="panel-section">
+            <div class="section-title">
+              <span>경로 요약</span>
+              <strong id="routeSource">-</strong>
+            </div>
+            <div class="metric-grid">
+              <div>
+                <span>거리</span>
+                <strong id="routeDistance">-</strong>
+              </div>
+              <div>
+                <span>예상 시간</span>
+                <strong id="routeTime">-</strong>
+              </div>
+            </div>
+            <ol id="routeSteps" class="route-steps"></ol>
+          </section>
+
+          <section class="panel-section">
+            <div class="section-title">
+              <span>대피소 목록</span>
+              <strong id="shelterCount">0곳</strong>
+            </div>
+            <div id="shelterList" class="shelter-list"></div>
+          </section>
+
+          <section class="panel-section">
+            <div class="section-title">
+              <span>침수 위험지역</span>
+              <strong id="floodCount">0구역</strong>
+            </div>
+            <div id="floodList" class="flood-list"></div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <dialog id="reportDialog" class="report-dialog">
+      <div class="dialog-heading">
+        <div>
+          <strong>현재 위치 신고</strong>
+          <span>확인된 GPS 좌표를 관리자에게 전송합니다.</span>
+        </div>
+        <button id="closeReportDialog" class="dialog-close" type="button" aria-label="신고 창 닫기">×</button>
+      </div>
+      <div class="report-coordinate-box">
+        <span>신고 좌표</span>
+        <strong id="reportCoordinates">-</strong>
+        <small id="reportAccuracy">-</small>
+      </div>
+      <label class="report-note-field" for="reportNote">
+        <span>현장 메모 <small>선택</small></span>
+        <textarea id="reportNote" maxlength="300" rows="4" placeholder="침수, 통행 제한 등 현장 상황을 입력하세요."></textarea>
+      </label>
+      <div class="dialog-actions">
+        <button id="cancelReportBtn" type="button">취소</button>
+        <button id="submitReportBtn" class="danger-command" type="button">신고 전송</button>
+      </div>
+    </dialog>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+</html>

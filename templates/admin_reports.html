@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>신고 좌표 관리 | 구미시 대피소 안내</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+    {% if tmap_app_key %}
+    <script
+      id="tmapSdk"
+      src="https://apis.openapi.sk.com/tmap/jsv2?version=1&amp;appKey={{ tmap_app_key }}"
+    ></script>
+    {% endif %}
+  </head>
+  <body>
+    <div class="admin-shell">
+      <header class="admin-topbar">
+        <div class="admin-brand">
+          <strong>신고 좌표 관리</strong>
+          <span>구미시 대피소 안내</span>
+        </div>
+        <div class="admin-actions">
+          <span id="adminMapBadge" class="connection-badge">지도 연결 중</span>
+          <a href="/">사용자 화면</a>
+          <a class="export-action" href="/api/admin/reports/export.xlsx">Excel 내보내기</a>
+          <button id="startFloodPlacement" class="placement-action" type="button">지도에서 침수 추가</button>
+          <button id="refreshReports" type="button">새로고침</button>
+        </div>
+      </header>
+
+      <main class="admin-workspace">
+        <section class="admin-map-pane" aria-label="신고 좌표 지도">
+          <div id="adminMap"></div>
+          <div id="adminMapFallback" hidden>
+            <strong>지도를 불러오지 못했습니다.</strong>
+            <span>TMAP 연결 상태를 확인해 주세요.</span>
+          </div>
+          <div id="adminMapStatus" class="admin-map-status">신고 좌표를 불러오는 중입니다.</div>
+        </section>
+
+        <aside class="reports-panel">
+          <section class="reports-summary">
+            <div>
+              <span>저장된 신고</span>
+              <strong id="reportCount">0건</strong>
+            </div>
+            <div>
+              <span>확정 침수 이력</span>
+              <strong id="floodHistoryCount">0건</strong>
+            </div>
+            <div>
+              <span>마지막 갱신</span>
+              <strong id="reportsUpdatedAt">-</strong>
+            </div>
+          </section>
+
+          <section id="selectedReport" class="selected-report empty">
+            지도 또는 목록에서 신고를 선택하세요.
+          </section>
+
+          <section class="reports-list-section">
+            <div class="reports-list-heading">
+              <strong>신고 및 침수 이력</strong>
+              <select id="reportFilter" aria-label="신고 상태 필터">
+                <option value="all">전체</option>
+                <option value="admin">관리자 직접 추가</option>
+                <option value="demo">데모 데이터</option>
+                <option value="confirmed">확정 침수 이력</option>
+                <option value="pending">승인 대기</option>
+                <option value="active">현재 침수</option>
+                <option value="resolved">침수 해제</option>
+              </select>
+            </div>
+            <div id="reportsList" class="reports-list"></div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <dialog id="adminFloodDialog" class="admin-flood-dialog">
+      <form id="adminFloodForm">
+        <div class="dialog-heading">
+          <div>
+            <strong>침수지점 추가</strong>
+            <span>선택 좌표 중심 반경 40m가 현재 침수구역으로 등록됩니다.</span>
+          </div>
+          <button id="closeFloodDialog" class="dialog-close" type="button" aria-label="닫기">×</button>
+        </div>
+        <div class="coordinate-confirmation">
+          <span>선택 좌표</span>
+          <strong id="adminFloodCoordinates">-</strong>
+        </div>
+        <label class="dialog-field" for="adminFloodNote">
+          <span>현장 메모</span>
+          <textarea id="adminFloodNote" maxlength="300" rows="3" placeholder="침수 깊이, 통제 상황 등 (선택)"></textarea>
+        </label>
+        <div class="dialog-actions">
+          <button id="cancelFloodPlacement" class="dialog-cancel" type="button">취소</button>
+          <button id="submitFloodPoint" class="dialog-submit" type="submit">현재 침수로 추가</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+  </body>
+</html>
