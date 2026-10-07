@@ -310,10 +310,13 @@ function setPlacementMode(active) {
   $(".admin-map-pane").classList.toggle("placement-mode", active);
 
   if (active) {
+    clearMarkers();
+    clearDongPolygons();
     showMapStatus("지도에서 현재 침수지점을 클릭해 주세요.");
   } else {
     state.pendingPoint = null;
     clearPendingMarker();
+    drawMarkers();
     showReportSummary();
   }
 }
@@ -710,6 +713,10 @@ function drawDongPolygons() {
 
 function drawMarkers() {
   clearMarkers();
+  if (state.placementMode) {
+    clearDongPolygons();
+    return;
+  }
   drawDongPolygons();
   const reports = visibleReports();
   if (!state.map || !window.Tmapv2 || !reports.length) return;
