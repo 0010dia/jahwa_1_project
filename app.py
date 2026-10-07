@@ -1103,6 +1103,13 @@ def api_admin_dong_flood_statistics():
     return jsonify(repository.statistics(load_active_location_reports()))
 
 
+@app.get("/api/admin/flood-statistics/history/dongs")
+def api_admin_dong_flood_history_statistics():
+    repository = get_admin_district_repository()
+    reports = load_confirmed_flood_reports()
+    return jsonify(repository.history_statistics(reports))
+
+
 @app.post("/api/admin/flood-zones")
 def api_create_admin_flood_zone():
     payload = request.get_json(silent=True) or {}

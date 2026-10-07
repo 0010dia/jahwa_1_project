@@ -122,6 +122,89 @@ class AdminDistrictRepository:
             "features": features,
         }
 
+    def history_statistics(self, reports: list[dict[str, Any]]) -> dict[str, Any]:
+        confirmed_reports = [
+            report
+            for report in reports
+            if str(report.get("status") or "") in {"active", "resolved"}
+        ]
+        buckets = [
+            {
+                "activeCount": 0,
+                "resolvedCount": 0,
+                "userCount": 0,
+                "adminCount": 0,
+                "demoCount": 0,
+            }
+            for _ in self.features
+        ]
+        unmatched_count = 0
+
+        for report in confirmed_reports:
+            status = str(report.get("status") or "")
+            index = self.district_index_for_point(
+                float(report["lat"]), float(report["lng"])
+            )
+            if index is None:
+                unmatched_count += 1
+                continue
+
+            bucket = buckets[index]
+            bucket[f"{status}Count"] += 1
+            if report.get("isSample"):
+                bucket["demoCount"] += 1
+            elif report.get("isAdminCreated"):
+                bucket["adminCount"] += 1
+            else:
+                bucket["userCount"] += 1
+
+        districts = []
+        for index, source_feature in enumerate(self.features):
+            bucket = buckets[index]
+            total_count = bucket["activeCount"] + bucket["resolvedCount"]
+            districts.append(
+                {
+                    **source_feature["properties"],
+                    **bucket,
+                    "totalCount": total_count,
+                }
+            )
+
+        matched_count = sum(item["totalCount"] for item in districts)
+        active_count = sum(
+            report["status"] == "active" for report in confirmed_reports
+        )
+        resolved_count = sum(
+            report["status"] == "resolved" for report in confirmed_reports
+        )
+        affected_count = sum(item["totalCount"] > 0 for item in districts)
+        top_district = max(
+            districts,
+            key=lambda item: (item["totalCount"], item["name"]),
+            default=None,
+        )
+
+        return {
+            "metadata": {
+                **self.metadata,
+                "totalCount": len(confirmed_reports),
+                "matchedCount": matched_count,
+                "activeCount": active_count,
+                "resolvedCount": resolved_count,
+                "affectedDongCount": affected_count,
+                "unmatchedCount": unmatched_count,
+                "maxCount": max(
+                    (item["totalCount"] for item in districts), default=0
+                ),
+                "topDongName": (
+                    top_district["name"]
+                    if top_district and top_district["totalCount"]
+                    else None
+                ),
+            },
+            "districts": districts,
+        }
+
 
 @lru_cache(maxsize=1)
 def get_admin_district_repository() -> AdminDistrictRepository:

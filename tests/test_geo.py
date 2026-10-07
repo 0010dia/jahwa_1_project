@@ -269,6 +269,9 @@ def test_admin_reports_page_is_available():
     assert 'id="adminFloodDialog"' in html
     assert 'id="dongStatsTab"' in html
     assert 'id="dongStatsList"' in html
+    assert 'id="openHistoryStatistics"' in html
+    assert 'id="historyStatisticsDialog"' in html
+    assert 'id="historyStatisticsChart"' in html
 
 
 def test_user_page_defaults_to_current_flood_only():
@@ -442,6 +445,42 @@ def test_admin_dong_statistics_follow_active_flood_status(report_db):
     ).get_json()
     assert resolved_payload["metadata"]["activeCount"] == 0
     assert resolved_payload["metadata"]["affectedDongCount"] == 0
+
+
+def test_admin_dong_history_statistics_use_confirmed_sql_records(report_db):
+    client = app_module.app.test_client()
+    active_report = client.post(
+        "/api/admin/flood-zones",
+        json={"lat": 36.11856, "lng": 128.36556},
+    ).get_json()["report"]
+    resolved_report = client.post(
+        "/api/admin/flood-zones",
+        json={"lat": 36.11860, "lng": 128.36560},
+    ).get_json()["report"]
+    client.post(f"/api/admin/reports/{resolved_report['id']}/resolve")
+    client.post(
+        "/api/reports",
+        json={"lat": 36.11864, "lng": 128.36564},
+    )
+
+    response = client.get("/api/admin/flood-statistics/history/dongs")
+    payload = response.get_json()
+    districts_with_history = [
+        district for district in payload["districts"] if district["totalCount"]
+    ]
+
+    assert response.status_code == 200
+    assert payload["metadata"]["totalCount"] == 2
+    assert payload["metadata"]["activeCount"] == 1
+    assert payload["metadata"]["resolvedCount"] == 1
+    assert payload["metadata"]["affectedDongCount"] == 1
+    assert payload["metadata"]["unmatchedCount"] == 0
+    assert payload["metadata"]["topDongName"]
+    assert len(payload["districts"]) == 25
+    assert len(districts_with_history) == 1
+    assert districts_with_history[0]["activeCount"] == 1
+    assert districts_with_history[0]["resolvedCount"] == 1
+    assert active_report["id"] != resolved_report["id"]
 
 
 def test_live_flood_geometry_uses_approximately_40_meter_radius():

@@ -23,6 +23,7 @@
           <span id="adminMapBadge" class="connection-badge">지도 연결 중</span>
           <a href="/">사용자 화면</a>
           <a class="export-action" href="/api/admin/reports/export.xlsx">Excel 내보내기</a>
+          <button id="openHistoryStatistics" class="statistics-action" type="button">이력 통계 보기</button>
           <button id="startFloodPlacement" class="placement-action" type="button">지도에서 침수 추가</button>
           <button id="refreshReports" type="button">새로고침</button>
         </div>
@@ -125,6 +126,48 @@
           <button id="submitFloodPoint" class="dialog-submit" type="submit">현재 침수로 추가</button>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="historyStatisticsDialog" class="history-statistics-dialog" aria-labelledby="historyStatisticsTitle">
+      <div class="history-statistics-shell">
+        <header class="history-statistics-heading">
+          <div>
+            <span>SQL 확정 침수 이력</span>
+            <h2 id="historyStatisticsTitle">행정동별 침수이력 통계</h2>
+            <p>승인된 현재 침수와 침수 해제 기록을 행정동별로 집계합니다.</p>
+          </div>
+          <button id="closeHistoryStatistics" class="history-statistics-close" type="button" aria-label="통계 닫기">×</button>
+        </header>
+
+        <section class="history-statistics-summary" aria-label="침수이력 요약">
+          <div>
+            <span>전체 확정 이력</span>
+            <strong id="historyTotalCount">-</strong>
+          </div>
+          <div>
+            <span>현재 침수</span>
+            <strong id="historyActiveCount">-</strong>
+          </div>
+          <div>
+            <span>침수 해제</span>
+            <strong id="historyResolvedCount">-</strong>
+          </div>
+          <div>
+            <span>최다 이력 지역</span>
+            <strong id="historyTopDong">-</strong>
+          </div>
+        </section>
+
+        <div class="history-chart-toolbar">
+          <strong>행정동별 확정 이력</strong>
+          <div class="history-chart-legend" aria-label="그래프 범례">
+            <span><i class="active"></i>현재 침수</span>
+            <span><i class="resolved"></i>침수 해제</span>
+          </div>
+        </div>
+        <div id="historyStatisticsChart" class="history-statistics-chart" aria-live="polite"></div>
+        <p id="historyStatisticsNote" class="history-statistics-note">승인 대기 신고는 통계에서 제외됩니다.</p>
+      </div>
     </dialog>
 
     <script src="{{ url_for('static', filename='js/admin.js') }}"></script>

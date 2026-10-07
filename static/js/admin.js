@@ -5,6 +5,7 @@ const state = {
   reports: [],
   markers: [],
   dongStatistics: null,
+  historyStatistics: null,
   dongPolygons: [],
   selectedReportId: null,
   selectedDongCode: null,
@@ -64,6 +65,7 @@ function reportLabel(report, detailed = false) {
 
 async function initialize() {
   $("#refreshReports").addEventListener("click", loadReports);
+  $("#openHistoryStatistics").addEventListener("click", openHistoryStatistics);
   $("#reportsTab").addEventListener("click", () => setPanelView("reports"));
   $("#dongStatsTab").addEventListener("click", () => setPanelView("dongs"));
   $("#startFloodPlacement").addEventListener("click", () => {
@@ -94,6 +96,7 @@ async function initialize() {
     $("#adminMapFallback").hidden = false;
   }
   bindFloodDialog();
+  bindHistoryStatisticsDialog();
   await loadReports();
 }
 
@@ -109,6 +112,135 @@ function bindFloodDialog() {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) cancelFloodPlacement();
   });
+}
+
+function bindHistoryStatisticsDialog() {
+  const dialog = $("#historyStatisticsDialog");
+  $("#closeHistoryStatistics").addEventListener("click", () => dialog.close());
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+}
+
+async function openHistoryStatistics() {
+  const dialog = $("#historyStatisticsDialog");
+  const button = $("#openHistoryStatistics");
+  if (!dialog.open) dialog.showModal();
+
+  button.disabled = true;
+  renderHistoryStatisticsLoading();
+  try {
+    const response = await fetch("/api/admin/flood-statistics/history/dongs");
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || "침수이력 통계를 불러오지 못했습니다.");
+    }
+    state.historyStatistics = payload;
+    renderHistoryStatistics(payload);
+  } catch (error) {
+    renderHistoryStatisticsError(
+      error instanceof Error ? error.message : "침수이력 통계를 불러오지 못했습니다."
+    );
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function resetHistoryStatisticsSummary() {
+  $("#historyTotalCount").textContent = "-";
+  $("#historyActiveCount").textContent = "-";
+  $("#historyResolvedCount").textContent = "-";
+  $("#historyTopDong").textContent = "-";
+}
+
+function renderHistoryStatisticsLoading() {
+  resetHistoryStatisticsSummary();
+  const chart = $("#historyStatisticsChart");
+  chart.replaceChildren();
+  const message = document.createElement("div");
+  message.className = "history-chart-message";
+  message.textContent = "행정동별 침수이력을 집계하는 중입니다.";
+  chart.appendChild(message);
+  $("#historyStatisticsNote").textContent = "승인 대기 신고는 통계에서 제외됩니다.";
+}
+
+function renderHistoryStatisticsError(message) {
+  resetHistoryStatisticsSummary();
+  const chart = $("#historyStatisticsChart");
+  chart.replaceChildren();
+  const error = document.createElement("div");
+  error.className = "history-chart-message error";
+  error.textContent = message;
+  chart.appendChild(error);
+}
+
+function renderHistoryStatistics(payload) {
+  const metadata = payload.metadata || {};
+  const chart = $("#historyStatisticsChart");
+  const districts = [...(payload.districts || [])].sort((a, b) => {
+    const countDifference = b.totalCount - a.totalCount;
+    return countDifference || a.name.localeCompare(b.name, "ko");
+  });
+  const maxCount = Math.max(1, Number(metadata.maxCount || 0));
+
+  $("#historyTotalCount").textContent = `${metadata.totalCount || 0}건`;
+  $("#historyActiveCount").textContent = `${metadata.activeCount || 0}건`;
+  $("#historyResolvedCount").textContent = `${metadata.resolvedCount || 0}건`;
+  $("#historyTopDong").textContent = metadata.topDongName || "이력 없음";
+  chart.replaceChildren();
+
+  if (!metadata.totalCount) {
+    const empty = document.createElement("div");
+    empty.className = "history-chart-message";
+    empty.textContent = "승인된 침수이력이 아직 없습니다.";
+    chart.appendChild(empty);
+  } else {
+    districts.forEach((district) => {
+      const row = document.createElement("div");
+      row.className = `history-chart-row${district.totalCount ? " has-history" : ""}`;
+      row.setAttribute(
+        "aria-label",
+        `${district.name}: 전체 ${district.totalCount}건, 현재 침수 ${district.activeCount}건, 침수 해제 ${district.resolvedCount}건`
+      );
+
+      const name = document.createElement("strong");
+      name.textContent = district.name;
+
+      const graph = document.createElement("div");
+      graph.className = "history-chart-graph";
+      const bar = document.createElement("div");
+      bar.className = "history-chart-bar";
+      const active = document.createElement("span");
+      active.className = "active";
+      active.style.width = `${district.activeCount / maxCount * 100}%`;
+      active.title = `현재 침수 ${district.activeCount}건`;
+      const resolved = document.createElement("span");
+      resolved.className = "resolved";
+      resolved.style.width = `${district.resolvedCount / maxCount * 100}%`;
+      resolved.title = `침수 해제 ${district.resolvedCount}건`;
+      bar.append(active, resolved);
+
+      const detail = document.createElement("small");
+      detail.textContent = district.totalCount
+        ? `현재 ${district.activeCount} · 해제 ${district.resolvedCount}`
+        : "이력 없음";
+      graph.append(bar, detail);
+
+      const total = document.createElement("b");
+      total.textContent = `${district.totalCount}건`;
+      row.append(name, graph, total);
+      chart.appendChild(row);
+    });
+  }
+
+  const noteParts = [
+    `확정 이력 ${metadata.totalCount || 0}건`,
+    `이력이 있는 행정동 ${metadata.affectedDongCount || 0}곳`,
+  ];
+  if (metadata.unmatchedCount) {
+    noteParts.push(`행정동 미확인 ${metadata.unmatchedCount}건`);
+  }
+  $("#historyStatisticsNote").textContent = `${noteParts.join(" · ")} · 승인 대기 신고 제외`;
 }
 
 function bindMapPlacement() {
@@ -329,6 +461,7 @@ async function loadReports() {
 
     state.reports = payload.reports || [];
     state.dongStatistics = statisticsPayload;
+    state.historyStatistics = null;
     if (!state.reports.some((report) => report.id === state.selectedReportId)) {
       state.selectedReportId = state.reports[0]?.id || null;
     }
